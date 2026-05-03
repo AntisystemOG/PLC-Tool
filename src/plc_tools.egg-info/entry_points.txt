@@ -1,0 +1,2 @@
+[console_scripts]
+plc-tools = plc_tools.app:main

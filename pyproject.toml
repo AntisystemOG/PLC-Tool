@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plc-tools"
+version = "1.0.0"
+description = "PLC diagnostic and monitoring tool for Allen-Bradley PLCs"
+requires-python = ">=3.11"
+dependencies = [
+    "pycomm3>=1.2",
+    "PySide6>=6.5",
+    "texttable>=1.7",
+    "py7zr>=0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-qt>=4",
+    "ruff>=0.4",
+    "black>=24",
+    "isort>=5",
+]
+
+[project.scripts]
+plc-tools = "plc_tools.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: plc-tools
+Version: 1.0.0
+Summary: PLC diagnostic and monitoring tool for Allen-Bradley PLCs
+Requires-Python: >=3.11
+Requires-Dist: pycomm3>=1.2
+Requires-Dist: PySide6>=6.5
+Requires-Dist: texttable>=1.7
+Requires-Dist: py7zr>=0.21
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+Requires-Dist: pytest-qt>=4; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Requires-Dist: black>=24; extra == "dev"
+Requires-Dist: isort>=5; extra == "dev"
