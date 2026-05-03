@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+*.log
+*.spec.bak
+
+# PyInstaller output (keep only the .exe for distribution, not _internal)
+_internal/
+PLCTools.exe
