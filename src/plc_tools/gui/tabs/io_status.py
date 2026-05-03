@@ -31,7 +31,7 @@ class IOStatusTab(QWidget):
         self._module_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._module_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._module_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._module_table.currentRowChanged.connect(self._on_module_selected)
+        self._module_table.currentCellChanged.connect(self._on_module_selected)
 
         self._channel_table = QTableWidget(0, 3)
         self._channel_table.setHorizontalHeaderLabels(["Channel", "Name", "Value"])
@@ -61,11 +61,11 @@ class IOStatusTab(QWidget):
                 status_item.setForeground(QColor("#ff4444"))
             self._module_table.setItem(row, 3, status_item)
 
-    def _on_module_selected(self, row: int) -> None:
-        if row < 0 or row >= len(self._modules):
+    def _on_module_selected(self, current_row: int, _current_col: int, _prev_row: int, _prev_col: int) -> None:
+        if current_row < 0 or current_row >= len(self._modules):
             self._channel_table.setRowCount(0)
             return
-        mod = self._modules[row]
+        mod = self._modules[current_row]
         self._channel_table.setRowCount(len(mod.channels))
         for r, ch in enumerate(mod.channels):
             direction = "IN" if ch.is_input else "OUT"
