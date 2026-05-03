@@ -23,7 +23,9 @@ from plc_tools.gui.tabs.program_view import ProgramViewTab
 from plc_tools.gui.tabs.tag_list import TagListTab
 from plc_tools.gui.tabs.tag_monitor import TagMonitorTab
 from plc_tools.gui.widgets.connection_bar import ConnectionBar
+from plc_tools.gui.widgets.recording_bar import RecordingBar
 from plc_tools.polling.poller import Poller
+from plc_tools.recording.recorder import DataRecorder
 from plc_tools.reports.generator import ReportGenerator
 
 
@@ -53,10 +55,16 @@ class MainWindow(QMainWindow):
         self._proj_mgr = ProjectManager()
         self._poller = Poller(self._conn_mgr)
         self._report_gen = ReportGenerator()
+        self._recorder = DataRecorder()
+        self._recorder.on_auto_stopped = self._on_recording_auto_stopped
         self._worker: _ConnectWorker | None = None
 
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll_tick)
+
+        self._record_tick_timer = QTimer(self)
+        self._record_tick_timer.setInterval(1000)
+        self._record_tick_timer.timeout.connect(self._update_recording_status)
 
         self._build_ui()
         self._build_menu()
@@ -71,6 +79,12 @@ class MainWindow(QMainWindow):
         self._conn_bar = ConnectionBar()
         self._conn_bar.disconnect_requested.connect(self._do_disconnect)
         layout.addWidget(self._conn_bar)
+
+        self._rec_bar = RecordingBar()
+        self._rec_bar.start_requested.connect(self._start_recording)
+        self._rec_bar.stop_requested.connect(self._stop_recording)
+        self._rec_bar.set_connected(False)
+        layout.addWidget(self._rec_bar)
 
         self._tabs = QTabWidget()
         self._tab_diag = DiagnosticsTab()
@@ -153,8 +167,11 @@ class MainWindow(QMainWindow):
     def _update_ui_connected(self) -> None:
         self._tabs.setEnabled(True)
         self._poll_timer.start(self._tab_monitor._interval_spin.value())
+        self._rec_bar.set_connected(True)
 
     def _update_ui_disconnected(self) -> None:
+        self._stop_recording()
+        self._rec_bar.set_connected(False)
         for tab in (self._tab_diag, self._tab_fault, self._tab_io,
                     self._tab_programs, self._tab_tags, self._tab_monitor):
             tab.clear()
@@ -207,6 +224,38 @@ class MainWindow(QMainWindow):
         if tags:
             values = self._conn_mgr.driver.read_tags(tags)
             self._tab_monitor.update_values(values)
+            if self._recorder.is_active:
+                self._recorder.record(values)
+
+    def _start_recording(self, path: str) -> None:
+        self._recorder.start(path)
+        self._rec_bar.set_recording()
+        self._record_tick_timer.start()
+        self._status_bar.showMessage(f"Recording to {path}", 4000)
+
+    def _stop_recording(self) -> None:
+        if self._recorder.is_active:
+            self._recorder.stop()
+            self._status_bar.showMessage(
+                f"Recording saved — {self._recorder.sample_count:,} samples", 5000
+            )
+        self._record_tick_timer.stop()
+        self._rec_bar.set_idle()
+
+    def _on_recording_auto_stopped(self) -> None:
+        self._record_tick_timer.stop()
+        self._rec_bar.set_idle()
+        self._status_bar.showMessage(
+            f"Recording complete (12 hours) — {self._recorder.sample_count:,} samples saved", 6000
+        )
+
+    def _update_recording_status(self) -> None:
+        if self._recorder.is_active:
+            self._rec_bar.update_status(
+                self._recorder.elapsed_seconds,
+                self._recorder.remaining_seconds,
+                self._recorder.sample_count,
+            )
 
     def _on_poll_interval_changed(self, ms: int) -> None:
         if self._poll_timer.isActive():
@@ -289,5 +338,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: object) -> None:
         self._poll_timer.stop()
+        self._stop_recording()
         self._conn_mgr.disconnect()
         super().closeEvent(event)
