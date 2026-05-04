@@ -18,29 +18,59 @@ from .models import (
     TagValue,
 )
 
+# Flat CCW-style global variable names (no Program: prefix — Micro800 uses global scope)
 _MOCK_TAGS: dict[str, tuple[Any, str]] = {
-    "Program:MainProgram.Motor1_Run": (False, "BOOL"),
-    "Program:MainProgram.Motor1_Speed": (1750.0, "REAL"),
-    "Program:MainProgram.Motor1_Fault": (False, "BOOL"),
-    "Program:MainProgram.Tank1_Level": (75.3, "REAL"),
-    "Program:MainProgram.Tank1_High": (False, "BOOL"),
-    "Program:MainProgram.Tank1_Low": (False, "BOOL"),
-    "Program:MainProgram.Conveyor_Run": (True, "BOOL"),
-    "Program:MainProgram.Conveyor_Speed": (60.0, "REAL"),
-    "Program:MainProgram.Conveyor_Fault": (False, "BOOL"),
-    "Program:SafetyProgram.EStop_OK": (True, "BOOL"),
-    "Program:SafetyProgram.GuardDoor_Closed": (True, "BOOL"),
-    "Global_HeartBeat": (0, "DINT"),
-    "Global_SystemReady": (True, "BOOL"),
-    "Global_AlarmCount": (0, "DINT"),
-    "Global_CycleCount": (12483, "DINT"),
+    # --- Controller globals ---
+    "HeartBeat":              (0,      "DINT"),
+    "SystemReady":            (True,   "BOOL"),
+    "AlarmActive":            (False,  "BOOL"),
+    "AlarmCode":              (0,      "UINT"),
+    "CycleCount":             (4712,   "DINT"),
+    "BatchCount":             (94,     "DINT"),
+    "RunMode":                (1,      "USINT"),   # 0=Stop 1=Run 2=Fault
+
+    # --- Conveyor ---
+    "Conveyor_Enable":        (True,   "BOOL"),
+    "Conveyor_Running":       (True,   "BOOL"),
+    "Conveyor_Fault":         (False,  "BOOL"),
+    "Conveyor_SpeedCmd":      (65.0,   "REAL"),    # % of full speed
+    "Conveyor_SpeedFbk":      (64.7,   "REAL"),
+    "Conveyor_AmpsAI":        (3.2,    "REAL"),    # motor current (A)
+
+    # --- Fill station ---
+    "FillStation_Enable":     (True,   "BOOL"),
+    "FillStation_Filling":    (False,  "BOOL"),
+    "FillStation_Complete":   (True,   "BOOL"),
+    "FillStation_Fault":      (False,  "BOOL"),
+    "FillValve_Open":         (False,  "BOOL"),
+    "FillWeight_AI":          (0.0,    "REAL"),    # kg
+    "FillSetpoint":           (1.250,  "REAL"),    # kg
+    "FillTolerance":          (0.025,  "REAL"),    # kg
+
+    # --- Digital sensors ---
+    "Sensor_BottlePresent":   (True,   "BOOL"),
+    "Sensor_ConvFull":        (False,  "BOOL"),
+    "Sensor_ConvEmpty":       (False,  "BOOL"),
+    "Sensor_DoorClosed":      (True,   "BOOL"),
+    "Sensor_EStop":           (True,   "BOOL"),    # True = OK (NC contact logic)
+
+    # --- Onboard AI raw counts (0–32767) ---
+    "_IO_EM_AI_00":           (16384,  "INT"),     # conveyor speed feedback
+    "_IO_EM_AI_01":           (8200,   "INT"),     # fill weight
+    "_IO_EM_AI_02":           (3100,   "INT"),     # motor current
+    "_IO_EM_AI_03":           (0,      "INT"),     # spare
+
+    # --- Timer accumulator values (ms) ---
+    "FillTimer_ACC":          (0,      "DINT"),
+    "FillTimer_PRE":          (3000,   "DINT"),    # 3 s fill time preset
+    "ConvTimer_ACC":          (0,      "DINT"),
 }
 
 
 class MockDriver(BasePLCDriver):
     def __init__(self, config: ConnectionConfig | None = None) -> None:
         if config is None:
-            config = ConnectionConfig(ip_address="192.168.1.1", plc_type=PLCType.MOCK, name="Mock PLC")
+            config = ConnectionConfig(ip_address="127.0.0.1", plc_type=PLCType.MOCK, name="Demo Micro850")
         super().__init__(config)
         self._tag_store: dict[str, tuple[Any, str]] = dict(_MOCK_TAGS)
         self._cycle = 0
@@ -58,9 +88,13 @@ class MockDriver(BasePLCDriver):
             return TagValue(name=tag_name, value=None, data_type="UNKNOWN", error="Tag not found")
         value, dtype = self._tag_store[tag_name]
         if dtype == "REAL":
-            value = value + random.uniform(-0.5, 0.5)
-        elif tag_name == "Global_HeartBeat":
+            magnitude = max(abs(value), 0.1)
+            value = round(value + random.uniform(-0.02 * magnitude, 0.02 * magnitude), 3)
+        elif tag_name == "HeartBeat":
             value = self._cycle % 32767
+            self._tag_store[tag_name] = (value, dtype)
+        elif tag_name.startswith("_IO_EM_AI_"):
+            value = max(0, min(32767, value + random.randint(-30, 30)))
             self._tag_store[tag_name] = (value, dtype)
         return TagValue(name=tag_name, value=value, data_type=dtype)
 
@@ -80,67 +114,55 @@ class MockDriver(BasePLCDriver):
     def get_programs(self) -> list[ProgramInfo]:
         return [
             ProgramInfo(
-                name="MainProgram",
+                name="FillingLine",
                 program_type="Normal",
                 routines=[
-                    RoutineInfo("MainRoutine", "LAD"),
-                    RoutineInfo("MotorControl", "LAD"),
-                    RoutineInfo("TankControl", "LAD"),
-                    RoutineInfo("ConveyorControl", "LAD"),
-                    RoutineInfo("AlarmRoutine", "LAD"),
+                    RoutineInfo("MainRoutine",        "ST"),
+                    RoutineInfo("ConveyorControl",    "FBD"),
+                    RoutineInfo("FillStationControl", "ST"),
+                    RoutineInfo("AlarmHandling",      "ST"),
+                    RoutineInfo("SafetyChecks",       "ST"),
                 ],
-            ),
-            ProgramInfo(
-                name="SafetyProgram",
-                program_type="Safety",
-                routines=[
-                    RoutineInfo("SafetyMain", "LAD"),
-                    RoutineInfo("EStopLogic", "LAD"),
-                ],
-            ),
+            )
         ]
 
     def get_io_modules(self) -> list[IOModule]:
         return [
             IOModule(
                 slot=0,
-                name="ControlLogix Controller",
+                name="Micro850 Onboard I/O",
                 vendor="Allen-Bradley",
-                catalog="1756-L85E",
+                catalog="2080-LC50-48QWB",
                 status="Running",
-                channels=[],
+                channels=(
+                    [IOChannel(i, f"_IO_EM_DI_{i:02d}", bool(random.randint(0, 1)), True)
+                     for i in range(28)]
+                    + [IOChannel(i, f"_IO_EM_DO_{i:02d}", bool(random.randint(0, 1)), False)
+                       for i in range(20)]
+                    + [IOChannel(i, f"_IO_EM_AI_{i:02d}", round(random.uniform(0, 32767), 0), True)
+                       for i in range(4)]
+                ),
             ),
             IOModule(
                 slot=1,
-                name="Digital Input Module",
+                name="2-Ch Analog Output Plug-In",
                 vendor="Allen-Bradley",
-                catalog="1756-IB16",
+                catalog="2080-OF2",
                 status="Running",
                 channels=[
-                    IOChannel(i, f"DI:{i:02d}", bool(random.randint(0, 1)), True)
-                    for i in range(16)
+                    IOChannel(0, "_IO_P1_AO_00", round(random.uniform(0, 32767), 0), False),
+                    IOChannel(1, "_IO_P1_AO_01", round(random.uniform(0, 32767), 0), False),
                 ],
             ),
             IOModule(
                 slot=2,
-                name="Digital Output Module",
+                name="High-Speed Counter / Serial Plug-In",
                 vendor="Allen-Bradley",
-                catalog="1756-OB16",
+                catalog="2080-SERIALISOL",
                 status="Running",
                 channels=[
-                    IOChannel(i, f"DO:{i:02d}", bool(random.randint(0, 1)), False)
-                    for i in range(16)
-                ],
-            ),
-            IOModule(
-                slot=3,
-                name="Analog Input Module",
-                vendor="Allen-Bradley",
-                catalog="1756-IF8",
-                status="Running",
-                channels=[
-                    IOChannel(i, f"AI:{i:02d}", round(random.uniform(0.0, 10.0), 3), True)
-                    for i in range(8)
+                    IOChannel(0, "_IO_P2_DI_00", bool(random.randint(0, 1)), True),
+                    IOChannel(1, "_IO_P2_DI_01", bool(random.randint(0, 1)), True),
                 ],
             ),
         ]
@@ -149,23 +171,23 @@ class MockDriver(BasePLCDriver):
         now = datetime.now()
         return [
             FaultEntry(
-                code=0x0001,
-                description="Minor fault: I/O module in slot 3 configuration mismatch",
-                timestamp=now - timedelta(hours=2, minutes=15),
+                code=0x0083,
+                description="Minor fault: Output overload on _IO_EM_DO_07 (FillValve_Open)",
+                timestamp=now - timedelta(minutes=47),
                 fault_type=FaultType.MINOR,
-                program="",
+                program="FillingLine",
             ),
             FaultEntry(
-                code=0x0042,
-                description="Major fault: Task watchdog timeout in MainProgram",
-                timestamp=now - timedelta(days=1, hours=4),
+                code=0x0041,
+                description="Major fault: Watchdog timeout — FillingLine task exceeded 20 ms scan time",
+                timestamp=now - timedelta(hours=6, minutes=12),
                 fault_type=FaultType.MAJOR,
-                program="MainProgram",
+                program="FillingLine",
             ),
             FaultEntry(
                 code=0x0010,
-                description="I/O fault: Communication loss on slot 2",
-                timestamp=now - timedelta(days=3),
+                description="I/O fault: Plug-in module slot 2 communication loss (2080-SERIALISOL)",
+                timestamp=now - timedelta(days=2, hours=3),
                 fault_type=FaultType.IO,
                 program="",
             ),
@@ -173,15 +195,15 @@ class MockDriver(BasePLCDriver):
 
     def get_controller_info(self) -> ControllerInfo:
         return ControllerInfo(
-            name="Mock_Controller",
-            serial_number="00FF1234",
-            firmware="35.011",
-            catalog="1756-L85E",
+            name="Micro850_FillingLine",
+            serial_number="00A3F712",
+            firmware="21.011",
+            catalog="2080-LC50-48QWB",
             vendor="Allen-Bradley",
             keyswitch="Run",
             status="Running",
             programs=self.get_programs(),
-            cpu_load=round(random.uniform(10.0, 35.0), 1),
-            memory_used=524288,
-            memory_total=2097152,
+            cpu_load=round(random.uniform(12.0, 28.0), 1),
+            memory_used=49152,     # 48 KB of 64 KB used
+            memory_total=65536,
         )

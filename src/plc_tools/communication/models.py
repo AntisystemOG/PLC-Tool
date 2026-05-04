@@ -7,9 +7,32 @@ from typing import Any
 
 
 class PLCType(Enum):
-    LOGIX = "logix"
-    MICRO800 = "micro800"
-    MOCK = "mock"
+    LOGIX    = "logix"
+    MICRO800 = "micro800"   # generic / unknown Micro800 (backward compat)
+    MICRO810 = "micro810"
+    MICRO820 = "micro820"
+    MICRO830 = "micro830"
+    MICRO850 = "micro850"
+    MICRO870 = "micro870"
+    MOCK     = "mock"
+
+    @property
+    def is_micro800(self) -> bool:
+        return self in {
+            PLCType.MICRO800, PLCType.MICRO810, PLCType.MICRO820,
+            PLCType.MICRO830, PLCType.MICRO850, PLCType.MICRO870,
+        }
+
+
+# Maps each Micro800 model to its catalog prefix and onboard I/O capacity.
+MICRO800_SPECS: dict[PLCType, dict] = {
+    PLCType.MICRO810: {"catalog": "2080-LC10", "di": 6,  "do": 4,  "ai": 2, "expansion": 0},
+    PLCType.MICRO820: {"catalog": "2080-LC20", "di": 12, "do": 6,  "ai": 2, "expansion": 2},
+    PLCType.MICRO830: {"catalog": "2080-LC30", "di": 18, "do": 12, "ai": 3, "expansion": 5},
+    PLCType.MICRO850: {"catalog": "2080-LC50", "di": 28, "do": 20, "ai": 4, "expansion": 5},
+    PLCType.MICRO870: {"catalog": "2080-LC70", "di": 28, "do": 20, "ai": 6, "expansion": 5},
+    PLCType.MICRO800: {"catalog": "2080-LC50", "di": 28, "do": 20, "ai": 4, "expansion": 5},
+}
 
 
 class FaultType(Enum):

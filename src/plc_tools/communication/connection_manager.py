@@ -42,7 +42,7 @@ class ConnectionManager:
     def _create_driver(self, config: ConnectionConfig) -> BasePLCDriver:
         if config.plc_type == PLCType.LOGIX:
             return LogixDriver(config)
-        if config.plc_type == PLCType.MICRO800:
+        if config.plc_type.is_micro800:   # covers MICRO800 + all five CCW models
             return Micro800Driver(config)
         if config.plc_type == PLCType.MOCK:
             return MockDriver(config)
