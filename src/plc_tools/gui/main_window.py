@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("PLC Tools")
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(980, 660)
 
         self._conn_mgr = ConnectionManager()
         self._proj_mgr = ProjectManager()
@@ -74,7 +74,8 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self._conn_bar = ConnectionBar()
         self._conn_bar.disconnect_requested.connect(self._do_disconnect)
@@ -85,22 +86,29 @@ class MainWindow(QMainWindow):
         self._rec_bar.stop_requested.connect(self._stop_recording)
         self._rec_bar.set_connected(False)
 
-        self._tabs = QTabWidget()
-        self._tab_diag = DiagnosticsTab()
-        self._tab_fault = FaultLogTab()
-        self._tab_io = IOStatusTab()
-        self._tab_programs = ProgramViewTab()
-        self._tab_tags = TagListTab()
-        self._tab_monitor = TagMonitorTab()
+        tab_container = QWidget()
+        tab_layout = QVBoxLayout(tab_container)
+        tab_layout.setContentsMargins(8, 8, 8, 0)
+        tab_layout.setSpacing(0)
 
-        self._tabs.addTab(self._tab_diag, "Diagnostics")
-        self._tabs.addTab(self._tab_fault, "Fault Log")
-        self._tabs.addTab(self._tab_io, "I/O Status")
-        self._tabs.addTab(self._tab_programs, "Programs")
-        self._tabs.addTab(self._tab_tags, "Tag List")
-        self._tabs.addTab(self._tab_monitor, "Tag Monitor")
+        self._tabs = QTabWidget()
+        self._tab_diag     = DiagnosticsTab()
+        self._tab_fault    = FaultLogTab()
+        self._tab_io       = IOStatusTab()
+        self._tab_programs = ProgramViewTab()
+        self._tab_tags     = TagListTab()
+        self._tab_monitor  = TagMonitorTab()
+
+        self._tabs.addTab(self._tab_diag,     "  Diagnostics  ")
+        self._tabs.addTab(self._tab_fault,    "  Fault Log  ")
+        self._tabs.addTab(self._tab_io,       "  I/O Status  ")
+        self._tabs.addTab(self._tab_programs, "  Programs  ")
+        self._tabs.addTab(self._tab_tags,     "  Tag List  ")
+        self._tabs.addTab(self._tab_monitor,  "  Tag Monitor  ")
         self._tabs.currentChanged.connect(self._on_tab_changed)
-        layout.addWidget(self._tabs)
+        tab_layout.addWidget(self._tabs)
+
+        layout.addWidget(tab_container, stretch=1)
         layout.addWidget(self._rec_bar)
 
         self._tab_diag._refresh_btn.clicked.connect(self._load_diagnostics)
@@ -150,7 +158,8 @@ class MainWindow(QMainWindow):
         if ok:
             cfg = self._conn_mgr.config
             self._conn_bar.set_connected(cfg.ip_address, cfg.name)
-            self._status_bar.showMessage(f"Connected to {cfg.name}", 4000)
+            self.setWindowTitle(f"PLC Tools  —  {cfg.name}")
+            self._status_bar.showMessage(f"Connected to {cfg.name}  ({cfg.ip_address})", 5000)
             self._update_ui_connected()
             self._load_all()
         else:
@@ -161,6 +170,7 @@ class MainWindow(QMainWindow):
         self._poll_timer.stop()
         self._conn_mgr.disconnect()
         self._conn_bar.set_disconnected()
+        self.setWindowTitle("PLC Tools")
         self._update_ui_disconnected()
         self._status_bar.showMessage("Disconnected", 3000)
 

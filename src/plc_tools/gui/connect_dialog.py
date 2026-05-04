@@ -86,7 +86,8 @@ class ConnectDialog(QDialog):
         group = QGroupBox("Connection Details")
         group.setLayout(form)
 
-        self._demo_btn = QPushButton("Load Demo  (Micro850 — no PLC required)")
+        self._demo_btn = QPushButton("▶  Load Demo  (Micro850 offline — no PLC required)")
+        self._demo_btn.setObjectName("demo_btn")
         self._demo_btn.setToolTip(
             "Pre-fills all fields for the offline Micro850 demo.\n"
             "No physical PLC or network connection is needed."
