@@ -84,7 +84,6 @@ class MainWindow(QMainWindow):
         self._rec_bar.start_requested.connect(self._start_recording)
         self._rec_bar.stop_requested.connect(self._stop_recording)
         self._rec_bar.set_connected(False)
-        layout.addWidget(self._rec_bar)
 
         self._tabs = QTabWidget()
         self._tab_diag = DiagnosticsTab()
@@ -102,6 +101,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._tab_monitor, "Tag Monitor")
         self._tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._tabs)
+        layout.addWidget(self._rec_bar)
 
         self._tab_diag._refresh_btn.clicked.connect(self._load_diagnostics)
         self._tab_fault._refresh_btn.clicked.connect(self._load_faults)
